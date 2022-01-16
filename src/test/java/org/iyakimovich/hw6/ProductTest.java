@@ -2,28 +2,19 @@ package org.iyakimovich.hw6;
 
 
 import com.github.javafaker.Faker;
-import db.dao.CategoriesMapper;
 import db.dao.ProductsMapper;
 import db.model.Products;
 import lombok.SneakyThrows;
-import okhttp3.ResponseBody;
-import org.apache.ibatis.io.Resources;
-import org.apache.ibatis.session.SqlSessionFactory;
-import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.iyakimovich.hw5.dto.ProductDTO;
 import org.iyakimovich.hw5.service.ProductService;
 import org.iyakimovich.hw5.utils.APITestUtils;
 import org.iyakimovich.hw5.utils.RetrofitUtils;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import retrofit2.Response;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -61,22 +52,34 @@ public class  ProductTest {
         LOGGER.info("runBeforeEachTests() - done");
     }
 
-    @SneakyThrows
     @AfterEach
     void runAfterEachTests() {
         LOGGER.info("runAfterEachTests() - started");
 
         if (productId != 0) {
-            LOGGER.info("Cleaning up created product with ID: {} was deleted", productId);
-            Response<ResponseBody> response = productService.deleteProduct(productId).execute();
-            assertTrue(response.isSuccessful());
+            LOGGER.info("Cleaning up created product with ID: {}", productId);
+
+            //Delete product via API
+            //LOGGER.info("Deleting product with ID: {} via API", productId);
+            //Response<ResponseBody> response = productService.deleteProduct(productId).execute();
+            //assertTrue(response.isSuccessful());
+
+            //Delete product via ORM
+            LOGGER.info("Deleting product with ID: {} via ORM", productId);
+            int result = productsMapper.deleteByPrimaryKey(Long.valueOf(productId));
+            LOGGER.info("Product with ID: {} was deleted via ORM. Result code: {}", productId, result);
+
             LOGGER.info("Product created with ID: {} was deleted", productId);
         }
 
         LOGGER.info("runAfterEachTests() - done");
     }
 
-    @SneakyThrows
+    @AfterAll
+    public static void runAfterAllTests() {
+        APITestUtils.closeSqlSession();
+    }
+
     @Test
     void getProductsTest() {
         LOGGER.info("getProductsTest() - started");
@@ -160,6 +163,27 @@ public class  ProductTest {
 
         assertEquals(updatedProduct.getTitle(), productUpdateReceived.getTitle());
 
+        LOGGER.info("Attempt up update product title via ORM");
+        productMyBatis.setTitle(product.getTitle() + " - Updated with ORM!");
+        int result = productsMapper.updateByPrimaryKey(productMyBatis);
+        assertTrue(result > 0);
+        APITestUtils.commitSQLchanges();
+        LOGGER.info("Attempt up update product title via ORM - done");
+
+        LOGGER.info("Attempt to retrieve ORM-updated product via API");
+        response = productService.getProduct(productId).execute();
+        assertTrue(response.isSuccessful());
+        productUpdateReceived = response.body();
+        LOGGER.info("ORM updated product with ID {} retrieved via API!", productId);
+
+        LOGGER.info("Received product title: {}", productUpdateReceived.getTitle());
+        LOGGER.info("Received product price: {}", productUpdateReceived.getPrice());
+        LOGGER.info("Received product category: {}", productUpdateReceived.getCategoryTitle());
+
+        //Check that ORM call actually updated the Title
+        assertEquals(productMyBatis.getTitle(), productUpdateReceived.getTitle());
+
+
         LOGGER.info("runCRUDProductTest() - stopped");
     }
 
@@ -177,6 +201,7 @@ public class  ProductTest {
         Products productMyBatis = productsMapper.selectByPrimaryKey(Long.valueOf(-2));
         LOGGER.info("productMyBatis extracted: {}", productMyBatis);
         assertTrue(productMyBatis == null);
+        APITestUtils.commitSQLchanges();
 
 
         LOGGER.info("getProductNegativeTest() - done");

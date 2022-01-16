@@ -55,4 +55,14 @@ public class APITestUtils {
     public ProductsMapper getProductsMapper() {
         return session.getMapper(ProductsMapper.class);
     }
+
+    @SneakyThrows
+    public void commitSQLchanges() {
+        session.commit();
+    }
+    @SneakyThrows
+    public void closeSqlSession() {
+        session.commit();
+        session.close();
+    }
 }
